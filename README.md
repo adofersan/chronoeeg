@@ -51,7 +51,7 @@ pip install chronoeeg
 
 ### From Source
 ```bash
-git clone https://github.com/yourusername/chronoeeg.git
+git clone https://github.com/adofersan/chronoeeg.git
 cd chronoeeg
 pip install -e .
 ```
@@ -253,7 +253,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 #### Local Development
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/chronoeeg.git
+git clone https://github.com/adofersan/chronoeeg.git
 cd chronoeeg
 
 # Create virtual environment
@@ -302,7 +302,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Author**: Your Name
 - **Email**: your.email@example.com
-- **GitHub**: [@yourusername](https://github.com/yourusername)
+- **GitHub**: [@adofersan](https://github.com/adofersan)
 
 ---
 
@@ -323,10 +323,10 @@ If you use this library in your research, please cite:
 
 ```bibtex
 @software{chronoeeg2025,
-  author = {Your Name},
-  title = {ChronoEEG: Advanced Multidimensional EEG Analysis Toolkit},
+  author = {Adolfo Santamónica},
+  title = {TODO},
   year = {2025},
-  url = {https://github.com/yourusername/chronoeeg}
+  url = {https://github.com/adofersan/chronoeeg}
 }
 ```
 
