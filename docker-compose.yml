@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  chronoeeg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chronoeeg:latest
+    container_name: chronoeeg-app
+    volumes:
+      - ./data:/data
+      - ./outputs:/outputs
+      - ./notebooks:/notebooks
+      - ./src:/app/src  # For development
+    environment:
+      - CHRONOEEG_DATA_PATH=/data
+      - CHRONOEEG_OUTPUT_PATH=/outputs
+    command: python
+    stdin_open: true
+    tty: true
+
+  chronoeeg-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chronoeeg:latest
+    container_name: chronoeeg-test
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    command: pytest tests/ -v --cov=chronoeeg --cov-report=html
+    
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chronoeeg:latest
+    container_name: chronoeeg-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+      - ./notebooks:/notebooks
+      - ./src:/app/src
+    environment:
+      - CHRONOEEG_DATA_PATH=/data
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      bash -c "pip install jupyter jupyterlab &&
+               jupyter lab --ip=0.0.0.0 --port=8888 --no-browser 
+               --allow-root --NotebookApp.token='' 
+               --NotebookApp.password=''"

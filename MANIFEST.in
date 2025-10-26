@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include src/chronoeeg *.py
+recursive-include tests *.py
+recursive-include docs *.rst *.md
+recursive-include notebooks *.ipynb
+prune docs/_build
+global-exclude __pycache__
+global-exclude *.py[co]
