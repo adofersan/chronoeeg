@@ -7,7 +7,7 @@ adapted from the I-CARE challenge helper code.
 
 import os
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict
 
 
 def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
@@ -42,7 +42,7 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
         If multiple signal files are referenced or format is invalid
     """
     # Allow either the record name or the header filename
-    root, ext = os.path.splitext(record_name)
+    _root, ext = os.path.splitext(record_name)
     if ext == '':
         header_file = record_name + '.hea'
     else:
@@ -52,7 +52,7 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
     if not os.path.isfile(header_file):
         raise FileNotFoundError(f'{record_name} recording not found.')
     
-    with open(header_file, 'r') as f:
+    with open(header_file, 'r', encoding='utf-8') as f:
         header = [l.strip() for l in f.readlines() if l.strip()]
     
     # Parse the header file
@@ -106,7 +106,7 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
         )
     
     # Load the signal file
-    head, tail = os.path.split(header_file)
+    head, _tail = os.path.split(header_file)
     signal_file = os.path.join(head, list(set(signal_files))[0])
     
     signals = np.fromfile(signal_file, dtype=np.int16).reshape(-1, num_signals)

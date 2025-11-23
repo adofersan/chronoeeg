@@ -34,6 +34,12 @@ from chronoeeg.exceptions import (
     PreprocessingError,
     QualityAssessmentError,
     FeatureExtractionError,
+    ConfigurationError,
+    InsufficientDataError,
+    SamplingRateMismatchError,
+    ChannelMismatchError,
+    EpochError,
+    FMMConvergenceError,
 )
 
 __all__ = [
@@ -60,4 +66,10 @@ __all__ = [
     "PreprocessingError",
     "QualityAssessmentError",
     "FeatureExtractionError",
+    "ConfigurationError",
+    "InsufficientDataError",
+    "SamplingRateMismatchError",
+    "ChannelMismatchError",
+    "EpochError",
+    "FMMConvergenceError",
 ]

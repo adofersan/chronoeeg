@@ -7,7 +7,6 @@ for WFDB format used in the I-CARE challenge dataset.
 
 import os
 from typing import Dict, List, Tuple, Optional
-import numpy as np
 import pandas as pd
 
 
@@ -31,10 +30,10 @@ class EEGDataLoader:
     >>> print(f"Loaded {eeg_data.shape[0]} samples from {eeg_data.shape[1]} channels")
     """
     
-    def __init__(self, data_folder: str, format: str = 'wfdb'):
+    def __init__(self, data_folder: str, file_format: str = 'wfdb'):
         """Initialize the EEG data loader."""
         self.data_folder = data_folder
-        self.format = format
+        self.file_format = file_format
         
         if not os.path.exists(data_folder):
             raise FileNotFoundError(f"Data folder not found: {data_folder}")
@@ -87,7 +86,7 @@ class EEGDataLoader:
         metadata = self._load_metadata(patient_folder, patient_id)
         
         # Load recording data
-        recording_files = self._find_recording_files(patient_folder, patient_id)
+        recording_files = self._find_recording_files(patient_folder)
         eeg_data = self._load_recordings(recording_files)
         
         return eeg_data, metadata
@@ -133,7 +132,7 @@ class EEGDataLoader:
         metadata_file = os.path.join(patient_folder, f"{patient_id}.txt")
         
         metadata = {}
-        with open(metadata_file, 'r') as f:
+        with open(metadata_file, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if ':' in line and line.startswith('#'):
@@ -143,14 +142,15 @@ class EEGDataLoader:
         
         return metadata
     
-    def _find_recording_files(self, patient_folder: str, patient_id: str) -> List[str]:
+    def _find_recording_files(self, patient_folder: str) -> List[str]:
         """Find all recording files for a patient."""
         record_names = set()
         
         for file_name in os.listdir(patient_folder):
             if file_name.endswith('.hea'):
                 root, _ = os.path.splitext(file_name)
-                record_name = '_'.join(root.split('_')[:-1])
+                # Extract record name from filename (e.g., 'patient_01_0001' from 'patient_01_0001_001.hea')
+                record_name = '_'.join(root.split('_')[:-1]) if '_' in root else root
                 record_path = os.path.join(patient_folder, record_name)
                 record_names.add(record_path)
         
@@ -199,7 +199,7 @@ class MultiDatasetLoader:
         if dataset_type == 'icare':
             self.loader = EEGDataLoader(
                 data_folder=self.config.get('data_path', './data'),
-                format='wfdb'
+                file_format='wfdb'
             )
         else:
             raise NotImplementedError(f"Dataset type '{dataset_type}' not yet supported")
