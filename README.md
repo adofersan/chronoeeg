@@ -84,20 +84,20 @@ loader = EEGDataLoader(data_folder="path/to/data")
 eeg_data, metadata = loader.load_patient("patient_001")
 
 # Extract 5-minute epochs
-epoch_extractor = EpochExtractor(epoch_length=300, sampling_rate=128)
+epoch_extractor = EpochExtractor(epoch_duration=300, sampling_rate=128)
 epochs = epoch_extractor.extract(eeg_data, metadata)
 
 # Assess signal quality
-quality_assessor = QualityAssessor(sampling_rate=128)
+quality_assessor = QualityAssessor()
 quality_scores = quality_assessor.assess_epochs(epochs)
 
 # Extract classical features
 classical_extractor = ClassicalFeatureExtractor(sampling_rate=128)
-classical_features = classical_extractor.extract(epochs[0])
+classical_features = classical_extractor.extract(epochs[0]['data'])
 
 # Extract FMM features
-fmm_extractor = FMMFeatureExtractor(n_components=10)
-fmm_features = fmm_extractor.extract(epochs[0])
+fmm_extractor = FMMFeatureExtractor(n_components=10, sampling_rate=128)
+fmm_features = fmm_extractor.extract(epochs[0]['data'])
 
 print(f"Quality Score: {quality_scores[0]['overall_quality']:.2f}%")
 print(f"Classical Features Shape: {classical_features.shape}")
@@ -112,7 +112,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 # Create end-to-end pipeline
 pipeline = EEGAnalysisPipeline(
-    epoch_length=300,
+    epoch_duration=300,
     sampling_rate=128,
     quality_threshold=70,  # Filter low-quality epochs
     feature_types=['classical', 'fmm'],
@@ -135,24 +135,28 @@ clf.fit(X_train, y_train)
 
 ## 📊 Visualization Examples
 
-### Quality Assessment Dashboard
+### Quality Assessment Visualization
 ```python
-from chronoeeg.visualization import QualityDashboard
+from chronoeeg.visualization import plot_quality_metrics, plot_signal
 
-dashboard = QualityDashboard()
-dashboard.plot_quality_metrics(quality_scores)
-dashboard.show_channel_heatmap(eeg_data)
+# Plot quality metrics
+plot_quality_metrics(quality_scores)
+
+# Plot EEG signal
+plot_signal(eeg_data, sampling_rate=128)
 ```
 
 ![Quality Dashboard Example](docs/images/quality_dashboard.png)
 
-### Feature Importance
+### Feature Visualization
 ```python
-from chronoeeg.visualization import FeatureVisualizer
+from chronoeeg.visualization import plot_feature_importance, plot_fmm_components
 
-viz = FeatureVisualizer()
-viz.plot_feature_importance(classical_features, top_n=20)
-viz.plot_fmm_components(fmm_features)
+# Plot feature importance
+plot_feature_importance(feature_importance, feature_names)
+
+# Plot FMM components
+plot_fmm_components(fmm_components, sampling_rate=128)
 ```
 
 ![Feature Importance Example](docs/images/feature_importance.png)
@@ -168,7 +172,7 @@ pytest
 
 Run with coverage:
 ```bash
-pytest --cov=neuro_eeg --cov-report=html
+pytest --cov=src/chronoeeg --cov-report=html
 ```
 
 Run specific tests:
