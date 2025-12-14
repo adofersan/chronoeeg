@@ -51,13 +51,52 @@ class EEGDataLoader:
         patient_ids = []
         for item in sorted(os.listdir(self.data_folder)):
             patient_folder = os.path.join(self.data_folder, item)
-            if os.path.isdir(patient_folder):
+            if os.path.isdir(patient_folder) and not item.startswith("."):
+                # Check if folder contains patient data (metadata file or .hea files)
                 metadata_file = os.path.join(patient_folder, f"{item}.txt")
-                if os.path.isfile(metadata_file):
+                has_metadata = os.path.isfile(metadata_file)
+                has_recordings = any(f.endswith(".hea") for f in os.listdir(patient_folder))
+                if has_metadata or has_recordings:
                     patient_ids.append(item)
         return patient_ids
 
-    def load_patient(self, patient_id: str) -> Tuple[pd.DataFrame, Dict]:
+    def list_recordings(self, patient_id: str) -> List[str]:
+        """
+        List all available recordings for a patient.
+
+        Parameters
+        ----------
+        patient_id : str
+            Patient identifier
+
+        Returns
+        -------
+        List[str]
+            List of recording names (without path or extension)
+
+        Examples
+        --------
+        >>> loader = EEGDataLoader(data_folder="path/to/data")
+        >>> recordings = loader.list_recordings("0284")
+        >>> print(recordings)  # ['0284_001_004_ECG']
+        """
+        patient_folder = os.path.join(self.data_folder, patient_id)
+
+        if not os.path.exists(patient_folder):
+            raise FileNotFoundError(f"Patient folder not found: {patient_folder}")
+
+        recordings = []
+        for file_name in os.listdir(patient_folder):
+            if file_name.endswith(".hea"):
+                # Get base name without extension
+                recording_name = os.path.splitext(file_name)[0]
+                recordings.append(recording_name)
+
+        return sorted(recordings)
+
+    def load_patient(
+        self, patient_id: str, recording_names: Optional[List[str]] = None
+    ) -> Tuple[pd.DataFrame, Dict]:
         """
         Load EEG data and metadata for a specific patient.
 
@@ -65,6 +104,9 @@ class EEGDataLoader:
         ----------
         patient_id : str
             Patient identifier
+        recording_names : List[str], optional
+            Specific recording names to load. If None, loads all recordings.
+            Use list_recordings() to see available recordings.
 
         Returns
         -------
@@ -77,6 +119,15 @@ class EEGDataLoader:
         ------
         FileNotFoundError
             If patient data is not found
+
+        Examples
+        --------
+        >>> # Load all recordings
+        >>> loader = EEGDataLoader(data_folder="path/to/data")
+        >>> data, meta = loader.load_patient("0284")
+        >>>
+        >>> # Load specific recordings only
+        >>> data, meta = loader.load_patient("0284", recording_names=["0284_001_004_ECG"])
         """
         patient_folder = os.path.join(self.data_folder, patient_id)
 
@@ -87,8 +138,21 @@ class EEGDataLoader:
         metadata = self._load_metadata(patient_folder, patient_id)
 
         # Load recording data
-        recording_files = self._find_recording_files(patient_folder)
-        eeg_data = self._load_recordings(recording_files)
+        recording_files = self._find_recording_files(patient_folder, recording_names)
+        eeg_data, recording_metadata = self._load_recordings(recording_files)
+
+        # Merge recording metadata into patient metadata
+        metadata.update(recording_metadata)
+
+        # Add recording info to metadata
+        metadata["num_recordings"] = len(recording_files)
+        metadata["loaded_recordings"] = [os.path.basename(f) for f in recording_files]
+
+        # Add default start time if not present (needed for epoch extraction)
+        if "Start time" not in metadata and "start_time" not in metadata:
+            from datetime import time
+
+            metadata["start_time"] = time(0, 0, 0)
 
         return eeg_data, metadata
 
@@ -126,49 +190,109 @@ class EEGDataLoader:
             "record_name": recording_data["record_name"],
         }
 
+        # Add timing information if available
+        if recording_data.get("start_time"):
+            metadata["Start time"] = recording_data["start_time"]
+        if recording_data.get("end_time"):
+            metadata["End time"] = recording_data["end_time"]
+        if recording_data.get("utility_frequency"):
+            metadata["utility_frequency"] = recording_data["utility_frequency"]
+
         return df, metadata
 
     def _load_metadata(self, patient_folder: str, patient_id: str) -> Dict:
         """Load patient metadata from text file."""
         metadata_file = os.path.join(patient_folder, f"{patient_id}.txt")
 
-        metadata = {}
+        metadata = {"patient_id": patient_id}
+
+        if not os.path.exists(metadata_file):
+            return metadata
+
         with open(metadata_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if ":" in line and line.startswith("#"):
+                if ":" in line:
+                    # Handle both "# Key: Value" and "Key: Value" formats
+                    if line.startswith("#"):
+                        line = line.lstrip("#").strip()
                     key, value = line.split(":", 1)
-                    key = key.strip("#").strip()
-                    metadata[key] = value.strip()
+                    key = key.strip()
+                    value = value.strip()
+                    metadata[key] = value
 
         return metadata
 
-    def _find_recording_files(self, patient_folder: str) -> List[str]:
-        """Find all recording files for a patient."""
-        record_names = set()
+    def _find_recording_files(
+        self, patient_folder: str, recording_names: Optional[List[str]] = None
+    ) -> List[str]:
+        """Find recording files for a patient.
 
+        Parameters
+        ----------
+        patient_folder : str
+            Path to patient folder
+        recording_names : List[str], optional
+            Specific recording names to find. If None, finds all recordings.
+
+        Returns
+        -------
+        List[str]
+            List of full paths to recording files (without extension)
+        """
+        available_recordings = {}
+
+        # Find all .hea files
         for file_name in os.listdir(patient_folder):
             if file_name.endswith(".hea"):
-                root, _ = os.path.splitext(file_name)
-                # Extract record name from filename (e.g., 'patient_01_0001' from 'patient_01_0001_001.hea')
-                record_name = "_".join(root.split("_")[:-1]) if "_" in root else root
+                # Get base name without extension (e.g., '0284_001_004_ECG')
+                record_name = os.path.splitext(file_name)[0]
                 record_path = os.path.join(patient_folder, record_name)
-                record_names.add(record_path)
+                available_recordings[record_name] = record_path
 
-        return sorted(list(record_names))
+        # Filter by requested recording names if specified
+        if recording_names:
+            selected_recordings = []
+            for rec_name in recording_names:
+                if rec_name in available_recordings:
+                    selected_recordings.append(available_recordings[rec_name])
+                else:
+                    # Try partial match (user might provide short name)
+                    matches = [
+                        path for name, path in available_recordings.items() if rec_name in name
+                    ]
+                    if matches:
+                        selected_recordings.extend(matches)
+                    else:
+                        raise ValueError(
+                            f"Recording '{rec_name}' not found. Available: {list(available_recordings.keys())}"
+                        )
+            return sorted(selected_recordings)
+        else:
+            return sorted(list(available_recordings.values()))
 
-    def _load_recordings(self, recording_files: List[str]) -> pd.DataFrame:
-        """Load multiple recording files and concatenate."""
+    def _load_recordings(self, recording_files: List[str]) -> Tuple[pd.DataFrame, Dict]:
+        """Load multiple recording files and concatenate.
+
+        Returns
+        -------
+        Tuple[pd.DataFrame, Dict]
+            Concatenated data and merged recording metadata
+        """
         all_data = []
+        recording_metadata = {}
 
         for record_file in recording_files:
-            data, _ = self.load_recording(record_file)
+            data, rec_meta = self.load_recording(record_file)
             all_data.append(data)
+            # Merge metadata from first recording (for timing info)
+            if not recording_metadata:
+                recording_metadata = rec_meta
 
         if all_data:
-            return pd.concat(all_data, ignore_index=True)
+            return pd.concat(all_data, ignore_index=True), recording_metadata
         else:
-            return pd.DataFrame()
+            return pd.DataFrame(), {}
 
 
 class MultiDatasetLoader:

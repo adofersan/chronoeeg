@@ -25,15 +25,22 @@ class EpochExtractor:
     sampling_rate : int
         Sampling rate in Hz
     align_to_clock : bool
-        Whether to align epochs to clock times (e.g., :00, :05, :10)
+        Whether to align epochs to clock times (e.g., :00, :05, :10).
+        Only works for epoch durations >= 60 seconds that divide evenly into 60 minutes.
+        Useful for clinical protocols requiring specific time alignment.
+        Default: False (sequential epochs starting from sample 0)
     start_time : datetime, optional
         Reference start time for epoch alignment
 
     Examples
     --------
+    >>> # Standard sequential epochs (most common)
     >>> extractor = EpochExtractor(epoch_duration=300, sampling_rate=128)
     >>> epochs = extractor.fit_transform(eeg_data)
-    >>> print(f"Extracted {epochs['epoch_id'].nunique()} epochs")
+    >>>
+    >>> # Clock-aligned epochs for multi-day analysis
+    >>> extractor = EpochExtractor(epoch_duration=300, sampling_rate=128, align_to_clock=True)
+    >>> epochs = extractor.fit_transform(eeg_data, metadata)
     """
 
     def __init__(
@@ -41,7 +48,7 @@ class EpochExtractor:
         epoch_duration: int = 300,
         overlap: float = 0.0,
         sampling_rate: int = 128,
-        align_to_clock: bool = True,
+        align_to_clock: bool = False,
         start_time: Optional[datetime] = None,
     ):
         """Initialize epoch extractor."""
@@ -89,7 +96,7 @@ class EpochExtractor:
 
         # Calculate temporal boundaries
         if self.align_to_clock and start_time:
-            time_segments = self._calculate_aligned_segments(start_time, end_time)
+            time_segments = self._calculate_aligned_segments(start_time, end_time, data)
         else:
             time_segments = self._calculate_sequential_segments(data, start_time)
 
@@ -124,13 +131,20 @@ class EpochExtractor:
         return epochs
 
     def _calculate_aligned_segments(
-        self, start_time: time, end_time: Optional[time]
+        self, start_time: time, end_time: Optional[time], data: pd.DataFrame
     ) -> List[Tuple[time, time]]:
         """
         Calculate epoch segments aligned to clock times.
 
         For 5-minute epochs, aligns to :00, :05, :10, etc.
+        Falls back to sequential segmentation for sub-minute epochs.
         """
+        # Clock alignment only works for epochs >= 60 seconds
+        epoch_minutes = self.epoch_length // 60
+        if epoch_minutes == 0:
+            # For sub-minute epochs, use sequential segmentation instead
+            return self._calculate_sequential_segments(data, start_time)
+
         # Convert to datetime for easier manipulation
         start_dt = datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
 
@@ -141,7 +155,6 @@ class EpochExtractor:
             end_dt = start_dt + timedelta(days=1)
 
         # Align start to next multiple of epoch_length
-        epoch_minutes = self.epoch_length // 60
         start_min = (start_dt.minute // epoch_minutes) * epoch_minutes
 
         if start_dt.minute % epoch_minutes != 0 or start_dt.second > 0:

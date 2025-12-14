@@ -11,6 +11,13 @@
 
 ## 🌟 Features
 
+### 📂 **Data Loading & I/O**
+- **Flexible Patient Discovery**: Automatically detect patient folders in data directories
+- **Recording Management**: List and selectively load recordings from multi-recording patients
+- **Memory-Efficient Loading**: Load specific recordings to avoid memory issues with large datasets
+- **WFDB Format Support**: Read EEG data from WFDB-compatible formats (.hea, .mat files)
+- **Metadata Extraction**: Automatic parsing of patient metadata (age, sex, hospital, clinical outcomes)
+
 ### 🔍 **Signal Quality Assessment**
 - **Multi-metric Quality Evaluation**: NaN detection, gap analysis, outlier detection, flatline detection, sharpness analysis, and phase-locking cohesion
 - **Automated Quality Scoring**: Per-segment quality metrics with customizable thresholds
@@ -79,9 +86,25 @@ from chronoeeg.preprocessing import EpochExtractor
 from chronoeeg.quality import QualityAssessor
 from chronoeeg.features import ClassicalFeatureExtractor, FMMFeatureExtractor
 
-# Load EEG data
+# Initialize loader
 loader = EEGDataLoader(data_folder="path/to/data")
-eeg_data, metadata = loader.load_patient("patient_001")
+
+# Discover available patients
+patients = loader.find_patients()
+print(f"Found {len(patients)} patients")
+
+# List available recordings for a patient (useful for large datasets)
+recordings = loader.list_recordings("0284")
+print(f"Patient 0284 has {len(recordings)} recordings")
+
+# Load specific recording(s) only (recommended for large datasets)
+eeg_data, metadata = loader.load_patient(
+    patient_id="0284",
+    recording_names=["0284_001_004_EEG"]  # Load only specific recordings
+)
+
+# Or load all recordings (use with caution for large datasets)
+# eeg_data, metadata = loader.load_patient("0284")
 
 # Extract 5-minute epochs
 epoch_extractor = EpochExtractor(epoch_duration=300, sampling_rate=128)
@@ -103,6 +126,41 @@ print(f"Quality Score: {quality_scores[0]['overall_quality']:.2f}%")
 print(f"Classical Features Shape: {classical_features.shape}")
 print(f"FMM Components: {fmm_features.shape[0]}")
 ```
+
+### Data Format
+
+ChronoEEG expects data organized in patient folders with WFDB-compatible format:
+
+```
+data/
+├── patient_001/
+│   ├── patient_001.txt              # Patient metadata (age, sex, etc.)
+│   ├── recording1.hea               # WFDB header file
+│   ├── recording1.mat               # WFDB data file
+│   ├── recording2.hea
+│   └── recording2.mat
+├── patient_002/
+│   └── ...
+```
+
+**Metadata file format** (`patient_id.txt`):
+```
+Patient: patient_001
+Hospital: A
+Age: 53
+Sex: Male
+ROSC: 1
+OHCA: 1
+Shockable Rhythm: 0
+TTM: 1
+```
+
+**Key points:**
+- Each patient has a dedicated folder named by patient ID
+- Metadata file should be named `{patient_id}.txt`
+- Recording files use WFDB format (.hea header + .mat data)
+- Use `list_recordings()` to discover available recordings before loading
+- Use selective loading for large datasets to avoid memory issues
 
 ### Advanced Pipeline
 
@@ -146,8 +204,6 @@ plot_quality_metrics(quality_scores)
 plot_signal(eeg_data, sampling_rate=128)
 ```
 
-![Quality Dashboard Example](docs/images/quality_dashboard.png)
-
 ### Feature Visualization
 ```python
 from chronoeeg.visualization import plot_feature_importance, plot_fmm_components
@@ -158,8 +214,6 @@ plot_feature_importance(feature_importance, feature_names)
 # Plot FMM components
 plot_fmm_components(fmm_components, sampling_rate=128)
 ```
-
-![Feature Importance Example](docs/images/feature_importance.png)
 
 ---
 
@@ -250,8 +304,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **Author**: Your Name
-- **Email**: your.email@example.com
+- **Name**: Adolfo Santamónica
+- **Email**: a.fernandezsantamonica@alumni.maastrichtuniversity.nl
 - **GitHub**: [@adofersan](https://github.com/adofersan)
 
 ---
@@ -264,21 +318,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Pre-trained models for common EEG tasks
 - [ ] Interactive web-based visualization dashboard
 - [ ] Integration with deep learning frameworks (PyTorch, TensorFlow)
-
----
-
-## 📊 Citation
-
-If you use this library in your research, please cite:
-
-```bibtex
-@software{chronoeeg2025,
-  author = {Adolfo Santamónica},
-  title = {TODO},
-  year = {2025},
-  url = {https://github.com/adofersan/chronoeeg}
-}
-```
 
 ---
 

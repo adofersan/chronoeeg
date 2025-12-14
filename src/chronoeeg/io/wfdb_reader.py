@@ -68,6 +68,9 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
     channels = []
     initial_values = []
     checksums = []
+    start_time = None
+    end_time = None
+    utility_frequency = None
 
     for i, l in enumerate(header):
         arrs = [arr.strip() for arr in l.split(" ")]
@@ -77,8 +80,16 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
             num_signals = int(arrs[1])
             sampling_frequency = float(arrs[2])
             num_samples = int(arrs[3])
+        # Parse comment lines for metadata
+        elif l.startswith("#"):
+            if "Start time:" in l:
+                start_time = l.split("Start time:")[-1].strip()
+            elif "End time:" in l:
+                end_time = l.split("End time:")[-1].strip()
+            elif "Utility frequency:" in l:
+                utility_frequency = l.split("Utility frequency:")[-1].strip()
         # Parse the signal specification lines
-        elif not l.startswith("#") and len(l.strip()) > 0:
+        elif len(l.strip()) > 0:
             signal_file = arrs[0]
             if "(" in arrs[2] and ")" in arrs[2]:
                 gain = float(arrs[2].split("/")[0].split("(")[0])
@@ -110,17 +121,39 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
     head, _tail = os.path.split(header_file)
     signal_file = os.path.join(head, list(set(signal_files))[0])
 
-    signals = np.fromfile(signal_file, dtype=np.int16).reshape(-1, num_signals)
+    # Load data from .mat file
+    import scipy.io
 
-    # Convert to physical units
-    for i in range(num_signals):
-        signals[:, i] = (signals[:, i] - baselines[i] - adc_zeros[i]) / gains[i]
+    data = np.asarray(scipy.io.loadmat(signal_file)["val"])
 
-    # Verify checksums if requested
+    # Check that dimensions match header
+    if data.shape != (num_signals, num_samples):
+        raise ValueError(
+            f"The header file {header_file} indicates {num_signals} channels and {num_samples} samples, "
+            f"but the signal file has shape {data.shape}"
+        )
+
+    # Verify initial values and checksums if requested
     if check_values:
         for i in range(num_signals):
-            if np.sum(signals[:, i]) != checksums[i]:
-                raise ValueError(f"Checksum failed for channel {channels[i]}")
+            if data[i, 0] != initial_values[i]:
+                raise ValueError(
+                    f"The initial value in header file {header_file} "
+                    f"is inconsistent with the initial value for channel {channels[i]}"
+                )
+            if np.sum(data[i, :], dtype=np.int16) != checksums[i]:
+                raise ValueError(
+                    f"The checksum in header file {header_file} "
+                    f"is inconsistent with the checksum for channel {channels[i]}"
+                )
+
+    # Rescale the signal data using gains and offsets
+    # Note: data is (num_channels, num_samples), need to transpose to (num_samples, num_channels)
+    signals = np.zeros((num_samples, num_signals), dtype=np.float32)
+    for i in range(num_signals):
+        signals[:, i] = (
+            np.asarray(data[i, :], dtype=np.float64) - baselines[i] - adc_zeros[i]
+        ) / gains[i]
 
     return {
         "record_name": os.path.splitext(os.path.basename(header_file))[0],
@@ -131,6 +164,9 @@ def load_recording_data(record_name: str, check_values: bool = False) -> Dict:
         "channels": channels,
         "gains": gains,
         "baselines": baselines,
+        "start_time": start_time,
+        "end_time": end_time,
+        "utility_frequency": utility_frequency,
     }
 
 

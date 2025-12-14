@@ -1,13 +1,8 @@
 include README.md
 include LICENSE
 include requirements.txt
-include INSTALL.md
-include PROJECT_SUMMARY.md
-include VALIDATION_REPORT.md
 recursive-include src/chronoeeg *.py
 recursive-include tests *.py
-recursive-include docs *.rst *.md
-prune docs/_build
 prune notebooks
 global-exclude __pycache__
 global-exclude *.py[co]
